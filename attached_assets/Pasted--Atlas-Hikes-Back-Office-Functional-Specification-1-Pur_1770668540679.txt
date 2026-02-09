@@ -1,0 +1,400 @@
+# Atlas Hikes Back Office – Functional Specification
+
+## 1. Purpose of the Back Office
+
+The back office is an internal system used to manage Atlas Hikes content, users, tours, bookings, payments, and financial operations without modifying source code.
+
+The system must support structured access control, progressive data visualization, tour lifecycle management, dynamic pricing, automated invoicing, and secure payment processing
+
+## 2. Identity, Roles, and Permissions Model
+
+Access control must follow this hierarchy:
+
+Identity → Role → Permissions
+
+This ensures scalability and avoids rigid role definitions.
+
+---
+
+## 2.1 Identity Types
+
+An identity represents **who the user is**, not what they can do.
+
+### Staff
+
+Internal team members working on Atlas Hikes operations.
+
+### Admin
+
+System-level identity with full authority.
+
+### Collaborator (Client)
+
+External users such as customers or partners with limited access.
+
+Each identity has:
+
+- Unique ID
+- Email
+- Status (active or inactive)
+- Associated role(s)
+
+---
+
+## 2.2 Roles
+
+Roles define **responsibility scopes** and are assigned to identities.
+
+Examples:
+
+- System Administrator
+- Content Editor
+- Content Manager
+- Booking Manager
+- Finance Manager
+
+Roles are configurable and reusable.
+
+---
+
+## 2.3 Permissions
+
+Permissions define **specific actions**.
+
+Examples:
+
+- Create tour
+- Edit tour
+- Publish tour
+- View bookings
+- Update booking status
+- View financial data
+- Configure payment gateway
+
+Permissions:
+
+- Are granular
+- Can be combined
+- Are not hard-coded
+- Are assigned to roles, not directly to users
+
+---
+
+## 2.4 User Management
+
+Admin can:
+
+- Create identities
+- Assign roles
+- Modify permissions
+- Deactivate access
+- Reset passwords
+
+Each user profile includes:
+
+- Full name
+- Email
+- Identity type
+- Assigned role(s)
+- Status
+- Last login
+
+## 3. Admin Dashboard and Progressive Disclosure
+
+### 3.1 Dashboard Philosophy
+
+The dashboard must follow **progressive disclosure**.
+
+Only essential data is shown by default.
+
+Advanced data is accessible through drill-downs and secondary views.
+
+This avoids cognitive overload and improves usability.
+
+---
+
+### 3.2 Default Dashboard View
+
+Default visible widgets:
+
+- Website visitors chart (Google Analytics API)
+- Total bookings (current month)
+- Monthly revenue
+- Upcoming tours
+- Alerts (pending verification, unpaid bookings)
+
+Optional widgets (collapsed by default):
+
+- Financial breakdowns
+- Tour performance
+- Discount analytics
+
+Admin can:
+
+- Customize visible widgets
+- Save dashboard layouts
+
+## 4. Tours Management
+
+### 4.1 Tour List View
+
+Each tour displays:
+
+- Title
+- Region
+- Duration
+- Difficulty
+- Price
+- Discount status
+- Booking availability
+- Status (draft or published)
+
+**Actions:**
+
+- Edit
+- Duplicate
+- Disable booking
+- Apply discount
+- Delete
+
+### 4.2 Tour Discount System
+
+Admin can apply discounts per tour.
+
+**Discount configuration:**
+
+- Discount type: percentage
+- Discount value (example: 10 percent)
+- Start date
+- End date
+- Active or inactive toggle
+
+**Rules:**
+
+- Discounted price must be calculated automatically
+- Discount must appear on frontend tour pages
+- Multiple discounts cannot overlap on the same tour
+
+### 4.2 Tours Management Page
+
+Features:
+
+- List all tours
+- Filter by status, region, difficulty, season
+- View completion progress (percentage or checklist)
+- Quick actions: edit, verify, publish, unpublish, archive
+
+---
+
+## 4.3 Dynamic Pricing Logic
+
+### Group Pricing
+
+Price calculation must adapt to group size.
+
+Examples:
+
+- Single traveler price
+- Small group price
+- Large group discounted price
+
+Pricing rules must be configurable per tour.
+
+---
+
+### Returning Customer Discount
+
+If a customer has booked before:
+
+- A loyalty discount is automatically applied
+- Discount percentage is configurable
+- Customer history is checked during booking
+
+The system must distinguish:
+
+- First-time customer
+- Returning customer
+
+---
+
+### Promotional Discounts
+
+Admin can apply:
+
+- Percentage-based discounts
+- Time-limited offers
+
+Rules:
+
+- Discounts cannot stack
+- Priority rules must be defined (loyalty vs promotion)
+
+## 5. Booking and Reservation Management
+
+### 5.1 Booking Overview
+
+Admin and Booking Managers can:
+
+- View all bookings
+- Filter by status, date, tour, payment state
+- Search by booking ID or customer
+
+Booking data includes:
+
+- Booking reference
+- Tour
+- Customer
+- Group size
+- Base price
+- Applied discounts
+- Final price
+- Payment status
+
+---
+
+### 5.2 Booking Status Workflow
+
+Statuses:
+
+- Pending payment
+- Partially paid (if enabled later)
+- Paid
+- Confirmed
+- Cancelled
+- Refunded
+
+Status updates can be:
+
+- Automatic (via Stripe webhooks)
+- Manual (admin override)
+
+---
+
+## 5.3 Automatic Invoice Generation
+
+The system must automatically generate an invoice for each confirmed booking.
+
+Invoice requirements:
+
+- Unique invoice number
+- Customer details
+- Tour details
+- Price breakdown
+- Discounts
+- VAT or tax (if applicable)
+- Payment status
+- Issue date
+
+Invoices must be:
+
+- Generated as PDF
+- Stored in the system
+- Downloadable by admin
+- Sent to customer
+
+## 6. Financial Dashboard
+
+### 6.1 Financial Overview
+
+Default view:
+
+- Monthly revenue
+- Paid vs pending amounts
+- Discounts impact
+
+Expandable views:
+
+- Revenue per tour
+- Revenue per period
+- Refunds and adjustments
+
+Filters:
+
+- Date range
+- Tour
+- Payment method
+
+---
+
+### 6.2 Transactions
+
+Each transaction includes:
+
+- Transaction ID
+- Booking reference
+- Stripe payment ID
+- Amount
+- Discount applied
+- Status
+- Date
+
+## 7. Payment Gateway Configuration (Stripe)
+
+### 7.1 Stripe Settings
+
+Admin can configure:
+
+- Stripe public key
+- Stripe secret key
+- Webhook secret
+- Currency
+- Payment mode (test or live)
+
+Settings must be editable from the admin panel.
+
+### 7.2 Payment Flow
+
+- Customer selects tour and number of participants
+- Discount is applied if active
+- Final price is calculated automatically
+- Payment is processed through Stripe
+- Booking status updates based on Stripe webhook response
+
+### 7.3 Webhooks Handling
+
+System must handle:
+
+- Payment succeeded
+- Payment failed
+- Payment refunded
+
+Webhook events must update booking and financial records automatically.
+
+## 8. Content Management (Summary)
+
+### Tours
+
+- Create
+- Edit
+- Publish
+- Manage itinerary
+- Manage images
+- SEO metadata
+- Discounts
+
+### Blogs
+
+- Block-based editor
+- Visual content sections
+- SEO metadata
+- Draft and publish workflow
+
+## 9. Media Library
+
+Admin and Editors can:
+
+- Upload images
+- Organize images by folders
+- Assign alt text and captions
+- Reuse images across tours and blogs
+
+## 10. System Settings
+
+Configurable settings:
+
+- Site name
+- Contact email
+- WhatsApp number
+- Currency
+- Default language
+- Social media links
