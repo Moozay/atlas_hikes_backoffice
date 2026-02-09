@@ -1,7 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { MetricCard } from "@/components/MetricCard";
 import { useDashboardStats } from "@/hooks/use-stats";
-import { BarChart3, Users, Map, DollarSign, Loader2 } from "lucide-react";
+import { BarChart3, Users, Map, DollarSign, Loader2, Calendar, Settings } from "lucide-react";
 import {
   LineChart,
   Line,
