@@ -1,8 +1,9 @@
 import { db } from "./db";
 import { 
-  tours, bookings, profiles, settings,
+  tours, bookings, profiles, settings, transactions,
   type Tour, type InsertTour, type UpdateTourRequest,
-  type Booking, type InsertBooking, type UpdateBookingStatusRequest,
+  type Booking, type InsertBooking,
+  type Transaction, type InsertTransaction,
   type Profile, type InsertProfile,
   type Setting,
   type DashboardStats
@@ -18,9 +19,15 @@ export interface IStorage {
   deleteTour(id: number): Promise<void>;
 
   // Bookings
-  getBookings(filters?: { tourId?: number, status?: string }): Promise<(Booking & { tour: Tour | null, user: any })[]>; // user is partial/mocked for now or fetched
+  getBookings(filters?: { tourId?: number, status?: string }): Promise<(Booking & { tour: Tour | null, user: any })[]>;
+  getBooking(id: number): Promise<(Booking & { tour: Tour | null, user: any }) | undefined>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBookingStatus(id: number, status: string): Promise<Booking | undefined>;
+  updateBookingPayment(id: number, amountPaid: number, status: string): Promise<Booking | undefined>;
+
+  // Transactions
+  getTransactions(bookingId?: number): Promise<Transaction[]>;
+  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
 
   // Profiles
   getProfile(userId: string): Promise<Profile | undefined>;
@@ -32,21 +39,22 @@ export interface IStorage {
   
   // Stats
   getDashboardStats(): Promise<DashboardStats & { revenueByMonth: any[] }>;
+  getFinanceStats(): Promise<{
+    totalRevenue: number;
+    pendingRevenue: number;
+    collectedRevenue: number;
+    transactions: Transaction[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
   async getTours(filters?: { status?: string, region?: string, search?: string }): Promise<Tour[]> {
     let query = db.select().from(tours);
     const conditions = [];
-    
     if (filters?.status) conditions.push(eq(tours.status, filters.status as any));
     if (filters?.region) conditions.push(eq(tours.region, filters.region));
     if (filters?.search) conditions.push(sql`title ILIKE ${`%${filters.search}%`}`);
-
-    if (conditions.length > 0) {
-      return await query.where(and(...conditions)).orderBy(desc(tours.createdAt));
-    }
-    
+    if (conditions.length > 0) return await query.where(and(...conditions)).orderBy(desc(tours.createdAt));
     return await query.orderBy(desc(tours.createdAt));
   }
 
@@ -70,19 +78,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getBookings(filters?: { tourId?: number, status?: string }): Promise<(Booking & { tour: Tour | null, user: any })[]> {
-    // Join with tours. User info is in `users` table but we can't join easily across modules if not careful, 
-    // but here we imported `users` from schema so we can join.
-    // However, the `bookings.userId` is a text FK to `users.id`.
-    
-    // Let's do a simple join with tours first.
-    // Drizzle relation query would be better but I didn't define relations in schema.ts fully.
-    // I'll do a manual join or just select and map. 
-    // Manual select with left join.
-    
     const result = await db.select({
       booking: bookings,
       tour: tours,
-      // user: users -- we will fetch user details from auth schema if needed, or just return ID
     })
     .from(bookings)
     .leftJoin(tours, eq(bookings.tourId, tours.id))
@@ -97,8 +95,25 @@ export class DatabaseStorage implements IStorage {
     return result.map(row => ({
       ...row.booking,
       tour: row.tour,
-      user: { id: row.booking.userId } // Placeholder, frontend can fetch or we join `users`
+      user: { id: row.booking.userId }
     }));
+  }
+
+  async getBooking(id: number): Promise<(Booking & { tour: Tour | null, user: any }) | undefined> {
+    const [row] = await db.select({
+      booking: bookings,
+      tour: tours,
+    })
+    .from(bookings)
+    .leftJoin(tours, eq(bookings.tourId, tours.id))
+    .where(eq(bookings.id, id));
+
+    if (!row) return undefined;
+    return {
+      ...row.booking,
+      tour: row.tour,
+      user: { id: row.booking.userId }
+    };
   }
 
   async createBooking(booking: InsertBooking): Promise<Booking> {
@@ -109,6 +124,24 @@ export class DatabaseStorage implements IStorage {
   async updateBookingStatus(id: number, status: string): Promise<Booking | undefined> {
     const [updated] = await db.update(bookings).set({ status: status as any }).where(eq(bookings.id, id)).returning();
     return updated;
+  }
+
+  async updateBookingPayment(id: number, amountPaid: number, paymentStatus: string): Promise<Booking | undefined> {
+    const [updated] = await db.update(bookings)
+      .set({ amountPaid, paymentStatus: paymentStatus as any })
+      .where(eq(bookings.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getTransactions(bookingId?: number): Promise<Transaction[]> {
+    if (bookingId) return await db.select().from(transactions).where(eq(transactions.bookingId, bookingId)).orderBy(desc(transactions.createdAt));
+    return await db.select().from(transactions).orderBy(desc(transactions.createdAt));
+  }
+
+  async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
+    const [newTx] = await db.insert(transactions).values(transaction).returning();
+    return newTx;
   }
 
   async getProfile(userId: string): Promise<Profile | undefined> {
@@ -140,20 +173,19 @@ export class DatabaseStorage implements IStorage {
     }).from(bookings);
 
     const [revenue] = await db.select({
-      total: sql<number>`sum(total_price)`
-    }).from(bookings).where(eq(bookings.paymentStatus, 'paid'));
+      total: sql<number>`sum(amount_paid)`
+    }).from(bookings);
 
     const [activeTours] = await db.select({
       count: sql<number>`count(*)`
     }).from(tours).where(eq(tours.status, 'published'));
 
-    // Monthly revenue (simplified)
     const revenueByMonth = await db.execute(sql`
-      SELECT TO_CHAR(booking_date, 'Mon') as name, SUM(total_price) as total
-      FROM bookings
-      WHERE payment_status = 'paid'
-      GROUP BY TO_CHAR(booking_date, 'Mon'), EXTRACT(MONTH FROM booking_date)
-      ORDER BY EXTRACT(MONTH FROM booking_date)
+      SELECT TO_CHAR(created_at, 'Mon') as name, SUM(amount) as total
+      FROM transactions
+      WHERE type = 'payment'
+      GROUP BY TO_CHAR(created_at, 'Mon'), EXTRACT(MONTH FROM created_at)
+      ORDER BY EXTRACT(MONTH FROM created_at)
     `);
 
     return {
@@ -162,6 +194,27 @@ export class DatabaseStorage implements IStorage {
       activeTours: Number(activeTours?.count || 0),
       pendingBookings: Number(bookingStats?.pending || 0),
       revenueByMonth: revenueByMonth.rows
+    };
+  }
+
+  async getFinanceStats(): Promise<{
+    totalRevenue: number;
+    pendingRevenue: number;
+    collectedRevenue: number;
+    transactions: Transaction[];
+  }> {
+    const [stats] = await db.select({
+      total: sql<number>`sum(total_price)`,
+      collected: sql<number>`sum(amount_paid)`
+    }).from(bookings);
+
+    const txs = await this.getTransactions();
+
+    return {
+      totalRevenue: Number(stats?.total || 0),
+      collectedRevenue: Number(stats?.collected || 0),
+      pendingRevenue: Number(stats?.total || 0) - Number(stats?.collected || 0),
+      transactions: txs
     };
   }
 }

@@ -10,17 +10,13 @@ export const userRoles = ["admin", "staff", "guide", "client"] as const;
 export const tourStatus = ["draft", "published", "archived"] as const;
 export const tourDifficulty = ["easy", "moderate", "difficult", "extreme"] as const;
 export const bookingStatus = ["pending", "confirmed", "cancelled", "completed", "refunded"] as const;
-export const paymentStatus = ["unpaid", "paid", "refunded", "partially_refunded"] as const;
+export const paymentStatus = ["unpaid", "partially_paid", "paid", "refunded"] as const;
 
 // === TABLE DEFINITIONS ===
 
-// Extend users table with roles (since we can't modify the auth module directly, we use a profile table or just rely on the JSONB metadata, but spec says "Identity -> Role". Let's create a UserProfile linked to auth users)
-// Actually, for Replit Auth, we can extend the users table in models/auth.ts if we could edit it, but we should probably add a separate table for app-specific user data or just use a separate table "user_roles".
-// Let's create a profiles table that links to users.id
-
 export const profiles = pgTable("profiles", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().unique(), // Foreign key to users.id (which is varchar)
+  userId: text("user_id").notNull().unique(), 
   role: text("role", { enum: userRoles }).default("client").notNull(),
   phoneNumber: text("phone_number"),
   bio: text("bio"),
@@ -46,50 +42,49 @@ export const tours = pgTable("tours", {
 
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
-  tourId: integer("tour_id").notNull(), // FK to tours.id
-  userId: text("user_id").notNull(), // FK to users.id
+  tourId: integer("tour_id").notNull(), 
+  userId: text("user_id").notNull(), 
   bookingDate: timestamp("booking_date").defaultNow(),
   travelDate: timestamp("travel_date").notNull(),
   participants: integer("participants").notNull(),
   totalPrice: integer("total_price").notNull(), // Final price after discounts
+  amountPaid: integer("amount_paid").default(0).notNull(), // Amount paid so far in cents
   status: text("status", { enum: bookingStatus }).default("pending").notNull(),
   paymentStatus: text("payment_status", { enum: paymentStatus }).default("unpaid").notNull(),
-  stripePaymentIntentId: text("stripe_payment_intent_id"),
   notes: text("notes"),
 });
 
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
-  bookingId: integer("booking_id").notNull(), // FK to bookings.id
+  bookingId: integer("booking_id").notNull(), 
   invoiceNumber: text("invoice_number").notNull().unique(),
-  url: text("url"), // URL to PDF
+  url: text("url"), 
   issuedDate: timestamp("issued_date").defaultNow(),
 });
 
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   bookingId: integer("booking_id").notNull(),
-  stripeChargeId: text("stripe_charge_id"),
   amount: integer("amount").notNull(),
-  status: text("status").notNull(), // stripe status
+  type: text("type").default("payment").notNull(), // payment, refund
+  method: text("method").default("manual").notNull(), // manual, bank_transfer
+  reference: text("reference"), // Transaction reference
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   key: text("key").unique().notNull(),
-  value: jsonb("value").notNull(), // Flexible value storage
+  value: jsonb("value").notNull(), 
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-// === RELATIONS ===
-// (Defined in backend if needed for Drizzle query builder, but often skipped for simple apps unless using query.tours.findMany({ with: ... }))
 
 // === SCHEMAS ===
 
 export const insertProfileSchema = createInsertSchema(profiles);
 export const insertTourSchema = createInsertSchema(tours).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true, bookingDate: true, status: true, paymentStatus: true, stripePaymentIntentId: true });
+export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true, bookingDate: true, status: true, paymentStatus: true, amountPaid: true });
+export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertSettingsSchema = createInsertSchema(settings).omit({ id: true, updatedAt: true });
 
 // === TYPES ===
@@ -98,8 +93,9 @@ export type Tour = typeof tours.$inferSelect;
 export type InsertTour = z.infer<typeof insertTourSchema>;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = z.infer<typeof insertProfileSchema>;
 export type Setting = typeof settings.$inferSelect;
 
 // Request/Response Types
@@ -108,6 +104,7 @@ export type UpdateTourRequest = Partial<InsertTour>;
 
 export type CreateBookingRequest = InsertBooking;
 export type UpdateBookingStatusRequest = { status: typeof bookingStatus[number] };
+export type AddTransactionRequest = { amount: number; method: string; reference?: string };
 
 export type DashboardStats = {
   totalBookings: number;

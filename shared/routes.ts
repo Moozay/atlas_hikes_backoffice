@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertTourSchema, insertBookingSchema, insertProfileSchema, tours, bookings, profiles, settings, insertSettingsSchema } from './schema';
+import { insertTourSchema, insertBookingSchema, tours, bookings, profiles, settings, transactions } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -21,10 +21,10 @@ export const api = {
       path: '/api/auth/me' as const,
       responses: {
         200: z.object({
-          user: z.any(), // Replit User
+          user: z.any(),
           profile: z.custom<typeof profiles.$inferSelect>().nullable(),
         }),
-        401: errorSchemas.notFound, // Not logged in
+        401: errorSchemas.notFound,
       },
     }
   },
@@ -85,7 +85,15 @@ export const api = {
         status: z.enum(['pending', 'confirmed', 'cancelled', 'completed', 'refunded']).optional(),
       }).optional(),
       responses: {
-        200: z.array(z.custom<typeof bookings.$inferSelect & { tour: typeof tours.$inferSelect, user: any }>()), // User is external, tour is joined
+        200: z.array(z.custom<typeof bookings.$inferSelect & { tour: typeof tours.$inferSelect, user: any }>()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/bookings/:id' as const,
+      responses: {
+        200: z.custom<typeof bookings.$inferSelect & { tour: typeof tours.$inferSelect, user: any }>(),
+        404: errorSchemas.notFound,
       },
     },
     create: {
@@ -104,6 +112,34 @@ export const api = {
       responses: {
         200: z.custom<typeof bookings.$inferSelect>(),
         404: errorSchemas.notFound,
+      },
+    },
+    addPayment: {
+      method: 'POST' as const,
+      path: '/api/bookings/:id/payments' as const,
+      input: z.object({ 
+        amount: z.coerce.number(),
+        method: z.string(),
+        reference: z.string().optional()
+      }),
+      responses: {
+        201: z.custom<typeof transactions.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  finance: {
+    stats: {
+      method: 'GET' as const,
+      path: '/api/finance/stats' as const,
+      responses: {
+        200: z.object({
+          totalRevenue: z.number(),
+          pendingRevenue: z.number(),
+          collectedRevenue: z.number(),
+          transactions: z.array(z.custom<typeof transactions.$inferSelect>()),
+        }),
       },
     },
   },
