@@ -11,3 +11,14 @@ export function useDashboardStats() {
     },
   });
 }
+
+export function useFinanceStats() {
+  return useQuery({
+    queryKey: [api.finance.stats.path],
+    queryFn: async () => {
+      const res = await fetch(api.finance.stats.path, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch finance stats");
+      return api.finance.stats.responses[200].parse(await res.json());
+    },
+  });
+}

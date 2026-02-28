@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Tours from "@/pages/Tours";
 import Bookings from "@/pages/Bookings";
+import Finance from "@/pages/Finance";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,13 +50,8 @@ function Router() {
         {() => <ProtectedRoute component={Settings} />}
       </Route>
       
-      {/* Finance - Placeholder for now */}
       <Route path="/finance">
-        {() => <ProtectedRoute component={() => (
-          <div className="flex h-screen items-center justify-center text-muted-foreground">
-            Finance Module Coming Soon
-          </div>
-        )} />}
+        {() => <ProtectedRoute component={Finance} />}
       </Route>
 
       <Route component={NotFound} />

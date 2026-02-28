@@ -60,3 +60,24 @@ export function useUpdateBookingStatus() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.bookings.list.path] }),
   });
 }
+
+export function useAddPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount, method, reference }: { id: number; amount: number; method: string; reference?: string }) => {
+      const url = buildUrl(api.bookings.addPayment.path, { id });
+      const res = await fetch(url, {
+        method: api.bookings.addPayment.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, method, reference }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to add payment");
+      return api.bookings.addPayment.responses[201].parse(await res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.bookings.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.finance.stats.path] });
+    },
+  });
+}
