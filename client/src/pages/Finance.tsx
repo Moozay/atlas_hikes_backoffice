@@ -24,24 +24,19 @@ export default function Finance() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <MetricCard
-          title="Total Revenue"
+          label="Total Revenue"
           value={`$${((stats?.totalRevenue || 0) / 100).toLocaleString()}`}
-          description="Total value of all bookings"
           icon={DollarSign}
         />
         <MetricCard
-          title="Collected Revenue"
+          label="Collected Revenue"
           value={`$${((stats?.collectedRevenue || 0) / 100).toLocaleString()}`}
-          description="Payments received to date"
           icon={ArrowUpRight}
-          trend={{ value: "Confirmed", positive: true }}
         />
         <MetricCard
-          title="Pending Revenue"
+          label="Pending Revenue"
           value={`$${((stats?.pendingRevenue || 0) / 100).toLocaleString()}`}
-          description="Awaiting collection"
           icon={Clock}
-          trend={{ value: "Outstanding", positive: false }}
         />
       </div>
 
