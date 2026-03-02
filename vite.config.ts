@@ -27,9 +27,19 @@ export default defineConfig({
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
+  // Point envDir to project root so VITE_* vars in root .env are picked up
+  envDir: path.resolve(import.meta.dirname),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+  },
+  // Force esbuild to pre-bundle mapbox-gl so the CJS bundle is converted to
+  // ESM, fixing the "does not provide an export named 'default'" error.
+  optimizeDeps: {
+    include: ["mapbox-gl"],
+    esbuildOptions: {
+      target: "esnext",
+    },
   },
   server: {
     fs: {

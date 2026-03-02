@@ -6,9 +6,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Tours from "@/pages/Tours";
+import TourPreview from "@/pages/TourPreview";
 import Bookings from "@/pages/Bookings";
 import Finance from "@/pages/Finance";
 import Settings from "@/pages/Settings";
+import Users from "@/pages/Users";
+import Profile from "@/pages/Profile";
 import Login from "@/pages/Login";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
@@ -31,27 +34,61 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return <Component />;
 }
 
+function PermissionRoute({ component: Component, permission }: { component: React.ComponentType; permission: string }) {
+  const { isAuthenticated, isLoading, hasPermission } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  if (!hasPermission(permission)) {
+    return <NotFound />;
+  }
+
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      
-      {/* Protected Routes */}
+
+      {/* Dashboard — accessible to all authenticated users */}
       <Route path="/">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
+
+      {/* Permission-gated routes */}
       <Route path="/tours">
-        {() => <ProtectedRoute component={Tours} />}
+        {() => <PermissionRoute component={Tours} permission="tours:view" />}
+      </Route>
+      <Route path="/tours/:id/preview">
+        {() => <PermissionRoute component={TourPreview} permission="tours:view" />}
       </Route>
       <Route path="/bookings">
-        {() => <ProtectedRoute component={Bookings} />}
+        {() => <PermissionRoute component={Bookings} permission="bookings:view" />}
+      </Route>
+      <Route path="/finance">
+        {() => <PermissionRoute component={Finance} permission="finance:view" />}
+      </Route>
+      <Route path="/users">
+        {() => <PermissionRoute component={Users} permission="users:view" />}
       </Route>
       <Route path="/settings">
-        {() => <ProtectedRoute component={Settings} />}
+        {() => <PermissionRoute component={Settings} permission="settings:edit" />}
       </Route>
-      
-      <Route path="/finance">
-        {() => <ProtectedRoute component={Finance} />}
+
+      {/* Profile — accessible to all authenticated users */}
+      <Route path="/profile">
+        {() => <ProtectedRoute component={Profile} />}
       </Route>
 
       <Route component={NotFound} />

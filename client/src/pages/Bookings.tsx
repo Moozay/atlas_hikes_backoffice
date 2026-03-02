@@ -101,6 +101,7 @@ export default function Bookings() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
@@ -111,7 +112,7 @@ export default function Bookings() {
                 <TableHead>People</TableHead>
                 <TableHead>Financials</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="sm:text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -124,9 +125,9 @@ export default function Bookings() {
                   <TableCell>{booking.participants}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <div className="text-sm font-medium">${(booking.totalPrice / 100).toLocaleString()}</div>
+                      <div className="text-sm font-medium">€{(booking.totalPrice / 100).toLocaleString()}</div>
                       <div className="flex items-center gap-2">
-                        <div className="text-xs text-muted-foreground">Paid: ${(booking.amountPaid / 100).toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Paid: €{(booking.amountPaid / 100).toLocaleString()}</div>
                         <Badge variant="outline" className={`text-[10px] px-1 py-0 border-0 ${getPaymentStatusColor(booking.paymentStatus)}`}>
                           {booking.paymentStatus.replace('_', ' ')}
                         </Badge>
@@ -138,7 +139,7 @@ export default function Bookings() {
                       {booking.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="sm:text-right">
                     <div className="flex justify-end gap-2">
                       <Dialog open={selectedBooking === booking.id} onOpenChange={(open) => !open && setSelectedBooking(null)}>
                         <DialogTrigger asChild>
@@ -154,12 +155,12 @@ export default function Bookings() {
                             </DialogDescription>
                           </DialogHeader>
                           <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                              <Label htmlFor="amount" className="text-right">Amount ($)</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                              <Label htmlFor="amount" className="sm:text-right">Amount (€)</Label>
                               <Input id="amount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="col-span-3" placeholder="0.00" />
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                              <Label htmlFor="method" className="text-right">Method</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                              <Label htmlFor="method" className="sm:text-right">Method</Label>
                               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                                 <SelectTrigger className="col-span-3">
                                   <SelectValue placeholder="Select method" />
@@ -171,8 +172,8 @@ export default function Bookings() {
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                              <Label htmlFor="ref" className="text-right">Reference</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                              <Label htmlFor="ref" className="sm:text-right">Reference</Label>
                               <Input id="ref" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} className="col-span-3" placeholder="e.g. TXN-12345" />
                             </div>
                           </div>
@@ -209,6 +210,7 @@ export default function Bookings() {
               ))}
             </TableBody>
           </Table>
+          </div>
         )}
       </div>
     </Layout>

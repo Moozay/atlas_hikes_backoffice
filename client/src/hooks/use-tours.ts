@@ -1,17 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateTourRequest, type UpdateTourRequest } from "@shared/routes";
 
-export function useTours(filters?: { status?: string; region?: string; search?: string }) {
+export function useTours(filters?: { status?: string; difficulty?: string; region?: string; category?: string; search?: string; featured?: boolean }) {
   const queryKey = filters ? [api.tours.list.path, filters] : [api.tours.list.path];
-  
+
   return useQuery({
     queryKey,
     queryFn: async () => {
-      // Build URL with query params
       const url = new URL(window.location.origin + api.tours.list.path);
       if (filters?.status) url.searchParams.set("status", filters.status);
+      if (filters?.difficulty) url.searchParams.set("difficulty", filters.difficulty);
       if (filters?.region) url.searchParams.set("region", filters.region);
+      if (filters?.category) url.searchParams.set("category", filters.category);
       if (filters?.search) url.searchParams.set("search", filters.search);
+      if (filters?.featured) url.searchParams.set("featured", "true");
 
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch tours");

@@ -34,8 +34,11 @@ export const api = {
       path: '/api/tours' as const,
       input: z.object({
         status: z.enum(['draft', 'published', 'archived']).optional(),
+        difficulty: z.enum(['easy', 'moderate', 'difficult', 'extreme']).optional(),
         region: z.string().optional(),
+        category: z.string().optional(),
         search: z.string().optional(),
+        featured: z.coerce.boolean().optional(),
       }).optional(),
       responses: {
         200: z.array(z.custom<typeof tours.$inferSelect>()),
@@ -153,7 +156,7 @@ export const api = {
           monthlyRevenue: z.number(),
           activeTours: z.number(),
           pendingBookings: z.number(),
-          revenueByMonth: z.array(z.object({ name: z.string(), total: z.number() })),
+          revenueByMonth: z.array(z.object({ name: z.string(), total: z.coerce.number() })),
         }),
       },
     },

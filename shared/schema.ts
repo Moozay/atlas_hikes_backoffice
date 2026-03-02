@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./models/auth"; // Re-export auth models
@@ -38,6 +38,20 @@ export const tours = pgTable("tours", {
   discountEndDate: timestamp("discount_end_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // Rich content fields
+  highlights:           jsonb("highlights").$type<string[]>().default([]),
+  itinerary:            jsonb("itinerary").$type<{ day: string; title: string; description: string; duration: string; elevation: string; accommodation?: string; meals?: string }[]>().default([]),
+  included:             jsonb("included").$type<string[]>().default([]),
+  excluded:             jsonb("excluded").$type<string[]>().default([]),
+  whatToBring:          jsonb("what_to_bring").$type<string[]>().default([]),
+  bestTime:             text("best_time"),
+  physicalRequirements: text("physical_requirements"),
+  culturalNotes:        text("cultural_notes"),
+  groupSize:            integer("group_size"),
+  category:             text("category"),
+  reviews:              jsonb("reviews").$type<{ id: number; name: string; avatar?: string; rating: number; date: string; comment: string }[]>().default([]),
+  routeGeoJson:         text("route_geo_json"),
+  deletedAt:            timestamp("deleted_at"),
 });
 
 export const bookings = pgTable("bookings", {
@@ -75,9 +89,36 @@ export const transactions = pgTable("transactions", {
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   key: text("key").unique().notNull(),
-  value: jsonb("value").notNull(), 
+  value: jsonb("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// === RBAC TABLES ===
+
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").unique().notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  name: text("name").unique().notNull(), // e.g. "tours:create"
+  description: text("description"),
+  resource: text("resource").notNull(),  // e.g. "tours"
+  action: text("action").notNull(),      // e.g. "create"
+});
+
+export const rolePermissions = pgTable("role_permissions", {
+  roleId: integer("role_id").notNull(),
+  permissionId: integer("permission_id").notNull(),
+}, (t) => [primaryKey({ columns: [t.roleId, t.permissionId] })]);
+
+export const userRolesTable = pgTable("user_roles", {
+  userId: text("user_id").notNull(),
+  roleId: integer("role_id").notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.roleId] })]);
 
 // === SCHEMAS ===
 
@@ -96,7 +137,12 @@ export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
+export type Role = typeof roles.$inferSelect;
+export type Permission = typeof permissions.$inferSelect;
+export type InsertRole = typeof roles.$inferInsert;
+export type InsertPermission = typeof permissions.$inferInsert;
 
 // Request/Response Types
 export type CreateTourRequest = InsertTour;

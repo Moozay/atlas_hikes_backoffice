@@ -1,8 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { User } from "@shared/models/auth";
+import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
-async function fetchUser(): Promise<User | null> {
-  const response = await fetch("/api/auth/user", {
+interface AuthUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  status?: string;
+  profile?: { role?: string } | null;
+  permissions: string[];
+}
+
+async function fetchMe(): Promise<AuthUser | null> {
+  const response = await fetch("/api/auth/me", {
     credentials: "include",
   });
 
@@ -17,30 +28,41 @@ async function fetchUser(): Promise<User | null> {
   return response.json();
 }
 
-async function logout(): Promise<void> {
-  window.location.href = "/api/logout";
-}
-
 export function useAuth() {
   const queryClient = useQueryClient();
-  const { data: user, isLoading } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
-    queryFn: fetchUser,
+  const [, navigate] = useLocation();
+
+  const { data: user, isLoading } = useQuery<AuthUser | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: fetchMe,
     retry: false,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   const logoutMutation = useMutation({
-    mutationFn: logout,
+    mutationFn: () => apiRequest("POST", "/api/logout"),
     onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/user"], null);
+      queryClient.setQueryData(["/api/auth/me"], null);
+      queryClient.clear();
+      navigate("/login");
     },
   });
+
+  const isAdmin = user?.profile?.role === "admin";
+  const permissions = user?.permissions ?? [];
+
+  function hasPermission(perm: string): boolean {
+    if (isAdmin) return true;
+    return permissions.includes(perm);
+  }
 
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
+    isAdmin,
+    permissions,
+    hasPermission,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
   };

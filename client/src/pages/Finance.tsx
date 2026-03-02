@@ -25,17 +25,17 @@ export default function Finance() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <MetricCard
           label="Total Revenue"
-          value={`$${((stats?.totalRevenue || 0) / 100).toLocaleString()}`}
+          value={`€${((stats?.totalRevenue || 0) / 100).toLocaleString()}`}
           icon={DollarSign}
         />
         <MetricCard
           label="Collected Revenue"
-          value={`$${((stats?.collectedRevenue || 0) / 100).toLocaleString()}`}
+          value={`€${((stats?.collectedRevenue || 0) / 100).toLocaleString()}`}
           icon={ArrowUpRight}
         />
         <MetricCard
           label="Pending Revenue"
-          value={`$${((stats?.pendingRevenue || 0) / 100).toLocaleString()}`}
+          value={`€${((stats?.pendingRevenue || 0) / 100).toLocaleString()}`}
           icon={Clock}
         />
       </div>
@@ -67,7 +67,7 @@ export default function Finance() {
                   <TableCell className="capitalize">{tx.method.replace('_', ' ')}</TableCell>
                   <TableCell className="text-muted-foreground">{tx.reference || '-'}</TableCell>
                   <TableCell className="text-right font-medium text-green-600 dark:text-green-400">
-                    +${(tx.amount / 100).toLocaleString()}
+                    +€{(tx.amount / 100).toLocaleString()}
                   </TableCell>
                 </TableRow>
               ))}

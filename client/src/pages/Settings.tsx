@@ -33,7 +33,7 @@ export default function Settings() {
               <CardDescription>Manage your business information visible on invoices.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Company Name</Label>
                   <Input defaultValue="Atlas Hikes" />
