@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Tours from "@/pages/Tours";
 import TourPreview from "@/pages/TourPreview";
+import Blogs from "@/pages/Blogs";
 import Bookings from "@/pages/Bookings";
 import Finance from "@/pages/Finance";
 import Settings from "@/pages/Settings";
@@ -69,6 +70,9 @@ function Router() {
       {/* Permission-gated routes */}
       <Route path="/tours">
         {() => <PermissionRoute component={Tours} permission="tours:view" />}
+      </Route>
+      <Route path="/blogs">
+        {() => <PermissionRoute component={Blogs} permission="blogs:view" />}
       </Route>
       <Route path="/tours/:id/preview">
         {() => <PermissionRoute component={TourPreview} permission="tours:view" />}

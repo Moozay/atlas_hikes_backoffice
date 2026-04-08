@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Map, Calendar, Settings, LogOut, Wallet, Users, ChevronRight, X } from "lucide-react";
+import { LayoutDashboard, Map, Calendar, Settings, LogOut, Wallet, Users, ChevronRight, X, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -20,6 +20,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const allLinks = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, perm: null },
     { href: "/tours", label: "Tours", icon: Map, perm: "tours:view" },
+    { href: "/blogs", label: "Blogs", icon: BookOpen, perm: "blogs:view" },
     { href: "/bookings", label: "Bookings", icon: Calendar, perm: "bookings:view" },
     { href: "/finance", label: "Finance", icon: Wallet, perm: "finance:view" },
     { href: "/users", label: "Users", icon: Users, perm: "users:view" },

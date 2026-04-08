@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertTourSchema, insertBookingSchema, tours, bookings, profiles, settings, transactions } from './schema';
+import { insertTourSchema, insertBookingSchema, insertBlogPostSchema, tours, bookings, profiles, settings, transactions, blogPosts } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -175,6 +175,65 @@ export const api = {
       input: z.object({ value: z.any() }),
       responses: {
         200: z.custom<typeof settings.$inferSelect>(),
+      },
+    },
+  },
+  blogs: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/blogs' as const,
+      input: z.object({
+        published: z.coerce.boolean().optional(),
+        featured: z.coerce.boolean().optional(),
+        category: z.string().optional(),
+        search: z.string().optional(),
+      }).optional(),
+      responses: {
+        200: z.object({
+          posts: z.array(z.custom<typeof blogPosts.$inferSelect>()),
+          total: z.number(),
+        }),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/blogs/:id' as const,
+      responses: {
+        200: z.custom<typeof blogPosts.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/blogs' as const,
+      input: insertBlogPostSchema,
+      responses: {
+        201: z.custom<typeof blogPosts.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/blogs/:id' as const,
+      input: insertBlogPostSchema.partial(),
+      responses: {
+        200: z.custom<typeof blogPosts.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/blogs/:id' as const,
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    bulkImport: {
+      method: 'POST' as const,
+      path: '/api/blogs/bulk-import' as const,
+      responses: {
+        200: z.object({ imported: z.number(), skipped: z.number(), failed: z.number() }),
       },
     },
   },

@@ -23,6 +23,9 @@ app.use(
 
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
+// Serve tour images mounted from the host via Docker volume
+app.use("/images/images_by_toure", express.static("/app/tour-images"));
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",

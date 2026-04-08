@@ -2,14 +2,15 @@ import { db } from "./db";
 import {
   tours, bookings, profiles, settings, transactions,
   roles, permissions, rolePermissions, userRolesTable,
-  users,
+  users, blogPosts,
   type Tour, type InsertTour, type UpdateTourRequest,
   type Booking, type InsertBooking,
   type Transaction, type InsertTransaction,
   type Profile, type InsertProfile,
   type Setting,
   type Role, type Permission, type InsertRole, type InsertPermission,
-  type DashboardStats
+  type DashboardStats,
+  type BlogPost, type InsertBlogPost,
 } from "@shared/schema";
 import { eq, desc, sql, and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -86,6 +87,14 @@ export interface IStorage {
   checkUserPermission(userId: string, permissionName: string): Promise<boolean>;
   getUserPermissions(userId: string): Promise<string[]>;
   bootstrapAdmin(): Promise<void>;
+
+  // Blogs
+  getBlogs(filters?: { published?: boolean; featured?: boolean; category?: string; search?: string }): Promise<{ posts: BlogPost[]; total: number }>;
+  getBlog(id: number): Promise<BlogPost | undefined>;
+  createBlog(blog: InsertBlogPost): Promise<BlogPost>;
+  updateBlog(id: number, blog: Partial<InsertBlogPost>): Promise<BlogPost | undefined>;
+  deleteBlog(id: number): Promise<void>;
+  bulkCreateBlogs(blogs: InsertBlogPost[]): Promise<{ imported: number; skipped: number; failed: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -474,6 +483,61 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userRolesTable.userId, userId));
     const names = rows.map((r: { name: string }) => r.name);
     return names.filter((n: string, i: number) => names.indexOf(n) === i);
+  }
+
+  async getBlogs(filters?: { published?: boolean; featured?: boolean; category?: string; search?: string }): Promise<{ posts: BlogPost[]; total: number }> {
+    const conditions: any[] = [];
+    if (filters?.published !== undefined) conditions.push(eq(blogPosts.published, filters.published));
+    if (filters?.featured !== undefined) conditions.push(eq(blogPosts.featured, filters.featured));
+    if (filters?.category) conditions.push(sql`category ILIKE ${`%${filters.category}%`}`);
+    if (filters?.search) conditions.push(sql`(title ILIKE ${`%${filters.search}%`} OR excerpt ILIKE ${`%${filters.search}%`})`);
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [posts, countResult] = await Promise.all([
+      db.select().from(blogPosts).where(where).orderBy(desc(blogPosts.publishedAt)),
+      db.select({ count: sql<number>`count(*)` }).from(blogPosts).where(where),
+    ]);
+
+    return { posts, total: Number(countResult[0]?.count ?? 0) };
+  }
+
+  async getBlog(id: number): Promise<BlogPost | undefined> {
+    const [post] = await db.select().from(blogPosts).where(eq(blogPosts.id, id));
+    return post;
+  }
+
+  async createBlog(blog: InsertBlogPost): Promise<BlogPost> {
+    const [newPost] = await db.insert(blogPosts).values(blog).returning();
+    return newPost;
+  }
+
+  async updateBlog(id: number, updates: Partial<InsertBlogPost>): Promise<BlogPost | undefined> {
+    const [updated] = await db.update(blogPosts).set({ ...updates, updatedAt: new Date() }).where(eq(blogPosts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBlog(id: number): Promise<void> {
+    await db.delete(blogPosts).where(eq(blogPosts.id, id));
+  }
+
+  async bulkCreateBlogs(posts: InsertBlogPost[]): Promise<{ imported: number; skipped: number; failed: number }> {
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const post of posts) {
+      try {
+        const existing = await db.select({ id: blogPosts.id }).from(blogPosts).where(eq(blogPosts.slug, post.slug)).limit(1);
+        if (existing.length > 0) { skipped++; continue; }
+        await db.insert(blogPosts).values(post);
+        imported++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { imported, skipped, failed };
   }
 
   async bootstrapAdmin(): Promise<void> {

@@ -7,8 +7,41 @@ import { requirePermission } from "./middleware/permission";
 import { z } from "zod";
 import { isAuthenticated } from "./replit_integrations/auth/replitAuth";
 import { cloudinary, cloudName, apiKey, apiSecret } from "./lib/cloudinary";
+import multer from "multer";
+import * as XLSX from "xlsx";
+import { marked } from "marked";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+function generateSlug(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function extractExcerpt(markdown: string, maxLen = 200): string {
+  const text = markdown.replace(/#+\s/g, "").replace(/[*_`[\]()>]/g, "").replace(/\n+/g, " ").trim();
+  return text.length > maxLen ? text.slice(0, maxLen).replace(/\s+\S*$/, "") + "..." : text;
+}
+
+function getReadingTime(markdown: string): number {
+  const words = markdown.trim().split(/\s+/).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+function guessCategory(title: string, keyword: string): string {
+  const text = (title + " " + keyword).toLowerCase();
+  if (text.includes("gear") || text.includes("equipment") || text.includes("pack")) return "Gear";
+  if (text.includes("food") || text.includes("nutrition") || text.includes("diet")) return "Nutrition";
+  if (text.includes("safety") || text.includes("risk") || text.includes("first aid")) return "Safety";
+  if (text.includes("culture") || text.includes("berber") || text.includes("morocco")) return "Culture";
+  if (text.includes("photo") || text.includes("camera")) return "Photography";
+  return "Guides";
+}
 
 const DEFAULT_PERMISSIONS = [
+  { name: "blogs:view",              description: "View blog posts",               resource: "blogs",    action: "view" },
+  { name: "blogs:create",            description: "Create blog posts",             resource: "blogs",    action: "create" },
+  { name: "blogs:edit",              description: "Edit blog posts",               resource: "blogs",    action: "edit" },
+  { name: "blogs:delete",            description: "Delete blog posts",             resource: "blogs",    action: "delete" },
   { name: "tours:view",              description: "View tours",                    resource: "tours",    action: "view" },
   { name: "tours:create",            description: "Create tours",                  resource: "tours",    action: "create" },
   { name: "tours:edit",              description: "Edit tours",                    resource: "tours",    action: "edit" },
@@ -32,6 +65,7 @@ const DEFAULT_ROLES = [
     name: "System Administrator",
     description: "Full access to all features",
     permissionNames: [
+      "blogs:view","blogs:create","blogs:edit","blogs:delete",
       "tours:view","tours:create","tours:edit","tours:publish","tours:delete",
       "bookings:view","bookings:create","bookings:update_status",
       "finance:view",
@@ -41,13 +75,13 @@ const DEFAULT_ROLES = [
   },
   {
     name: "Content Manager",
-    description: "Full control over tours (including publish/delete)",
-    permissionNames: ["tours:view","tours:create","tours:edit","tours:publish","tours:delete"],
+    description: "Full control over tours and blogs (including publish/delete)",
+    permissionNames: ["blogs:view","blogs:create","blogs:edit","blogs:delete","tours:view","tours:create","tours:edit","tours:publish","tours:delete"],
   },
   {
     name: "Content Editor",
-    description: "Can create and edit tours but cannot publish or delete",
-    permissionNames: ["tours:view","tours:create","tours:edit"],
+    description: "Can create and edit tours and blogs but cannot delete",
+    permissionNames: ["blogs:view","blogs:create","blogs:edit","tours:view","tours:create","tours:edit"],
   },
   {
     name: "Booking Manager",
@@ -414,6 +448,107 @@ export async function registerRoutes(
     if (profile?.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     await storage.seedPermissions(DEFAULT_PERMISSIONS);
     res.json({ message: "Permissions seeded", count: DEFAULT_PERMISSIONS.length });
+  });
+
+  // === BLOGS ===
+
+  app.get(api.blogs.list.path, isAuthenticated, requirePermission("blogs:view"), async (req: Request, res: Response) => {
+    const q = req.query as any;
+    const result = await storage.getBlogs({
+      published: q.published !== undefined ? q.published === "true" : undefined,
+      featured: q.featured !== undefined ? q.featured === "true" : undefined,
+      category: q.category,
+      search: q.search,
+    });
+    res.json(result);
+  });
+
+  app.get(api.blogs.get.path, isAuthenticated, requirePermission("blogs:view"), async (req: Request, res: Response) => {
+    const post = await storage.getBlog(Number(req.params.id));
+    if (!post) return res.status(404).json({ message: "Blog post not found" });
+    res.json(post);
+  });
+
+  app.post(api.blogs.create.path, isAuthenticated, requirePermission("blogs:create"), async (req: Request, res: Response) => {
+    try {
+      const input = api.blogs.create.input.parse(req.body);
+      const post = await storage.createBlog(input);
+      res.status(201).json(post);
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ message: e.errors[0]?.message ?? "Validation error" });
+      throw e;
+    }
+  });
+
+  app.put(api.blogs.update.path, isAuthenticated, requirePermission("blogs:edit"), async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getBlog(id);
+    if (!existing) return res.status(404).json({ message: "Blog post not found" });
+    const post = await storage.updateBlog(id, req.body);
+    res.json(post);
+  });
+
+  app.delete(api.blogs.delete.path, isAuthenticated, requirePermission("blogs:delete"), async (req: Request, res: Response) => {
+    const existing = await storage.getBlog(Number(req.params.id));
+    if (!existing) return res.status(404).json({ message: "Blog post not found" });
+    await storage.deleteBlog(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Bulk import from Excel (.xlsx)
+  app.post(api.blogs.bulkImport.path, isAuthenticated, requirePermission("blogs:create"), upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+
+      const posts = await Promise.all(rows.map(async (row, i) => {
+        const title = row.BLOG_TITLE || row.title || row.Title || "";
+        const content = row.Content || row.content || row.CONTENT || "";
+        const primaryKeyword = row.PRIMARY_KEYWORD || row.primary_keyword || row.keyword || "";
+        if (!title || !content) return null;
+
+        const slug = generateSlug(title);
+        const excerpt = extractExcerpt(content);
+        const contentHtml = await marked(content);
+        const readTime = getReadingTime(content);
+        const category = guessCategory(title, primaryKeyword);
+        const metaTitle = title.length <= 46 ? `${title} | Atlas Hikes` : title.slice(0, 60);
+        const metaDescription = excerpt.length > 155 ? excerpt.slice(0, 152) + "..." : excerpt;
+
+        return {
+          slug,
+          title,
+          primaryKeyword,
+          excerpt,
+          contentMarkdown: content,
+          contentHtml,
+          image: "",
+          imageAlt: `${title} - Atlas Mountains hiking`,
+          readTime,
+          category,
+          tags: [] as string[],
+          author: "Atlas Hikes",
+          authorRole: "Mountain Guide",
+          authorAvatar: "/svg/hiker.svg",
+          published: true,
+          featured: i < 8,
+          metaTitle,
+          metaDescription,
+          canonicalUrl: `https://atlashikes.com/blogs/${slug}`,
+          publishedAt: row.Created ? new Date(row.Created) : new Date(),
+        };
+      }));
+
+      const validPosts = posts.filter(Boolean) as any[];
+      const result = await storage.bulkCreateBlogs(validPosts);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Bulk import error:", err);
+      res.status(500).json({ message: "Import failed: " + err.message });
+    }
   });
 
   return httpServer;

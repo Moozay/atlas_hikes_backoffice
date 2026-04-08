@@ -120,6 +120,33 @@ export const userRolesTable = pgTable("user_roles", {
   roleId: integer("role_id").notNull(),
 }, (t) => [primaryKey({ columns: [t.userId, t.roleId] })]);
 
+export const blogPosts = pgTable("blog_posts", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").unique().notNull(),
+  title: text("title").notNull(),
+  primaryKeyword: text("primary_keyword").notNull().default(""),
+  excerpt: text("excerpt").notNull(),
+  contentMarkdown: text("content_markdown").notNull(),
+  contentHtml: text("content_html").notNull(),
+  image: text("image").notNull().default(""),
+  imageAlt: text("image_alt").notNull().default(""),
+  readTime: integer("read_time").notNull().default(5),
+  category: text("category").notNull().default("Guides"),
+  tags: text("tags").array().notNull().default([]),
+  author: text("author").notNull().default("Atlas Hikes"),
+  authorRole: text("author_role").notNull().default("Mountain Guide"),
+  authorAvatar: text("author_avatar").notNull().default("/svg/hiker.svg"),
+  published: boolean("published").notNull().default(true),
+  featured: boolean("featured").notNull().default(false),
+  views: integer("views").notNull().default(0),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  canonicalUrl: text("canonical_url"),
+  publishedAt: timestamp("published_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // === SCHEMAS ===
 
 export const insertProfileSchema = createInsertSchema(profiles);
@@ -143,6 +170,10 @@ export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
 export type InsertRole = typeof roles.$inferInsert;
 export type InsertPermission = typeof permissions.$inferInsert;
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({ id: true, createdAt: true, updatedAt: true, views: true });
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 
 // Request/Response Types
 export type CreateTourRequest = InsertTour;
